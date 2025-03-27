@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { CalculatorDisplay } from "@/components/Display";
 import { ButtonPad, ButtonPadMember } from "@/components/ButtonPad";
-import { History, Delete, Parentheses, Pi } from "lucide-react-native";
-import { useState } from "react";
+import { History, Delete, Brain, StopCircle } from "lucide-react-native";
+import { useState, useEffect } from "react";
+import * as ScreenOrientation from "expo-screen-orientation";
 import {
   evaluate,
   pi,
@@ -18,12 +19,75 @@ import {
   unit,
   asin,
 } from "mathjs";
+import { Audio } from "expo-av";
+import { Recording } from "expo-av/build/Audio";
+import axios from "axios";
 
 export default function Page() {
   const [display, setDisplay] = useState("");
   const [result, setResult] = useState("");
   const [history, setHistory] = useState<string[]>([]);
+  const [recording, setRecording] = useState<Recording>();
+  const [isRecording, setIsRecording] = useState(false);
+  const [permissionResponse, requestPermission] = Audio.usePermissions();
+  // const [orientation, setOrientation] = useState<{
+  //   value: ScreenOrientation.Orientation;
+  //   lock: ScreenOrientation.OrientationLock;
+  // } | null>(null);
   const maxHistoryLength = 10;
+
+  //Recording functionality
+  const startRecording = async () => {
+    try {
+      if (permissionResponse?.status !== "granted") {
+        console.log("Requesting permission..");
+        await requestPermission();
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      console.log("Starting recording...");
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(recording);
+      setIsRecording(true);
+      console.log("Recording started");
+    } catch (err) {
+      console.error("Failed to start recording", err);
+    }
+  };
+
+  const stopRecording = async () => {
+    console.log("Stopping recording..");
+    setRecording(undefined);
+
+    await recording?.stopAndUnloadAsync();
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+    });
+
+    const uri = recording?.getURI();
+
+    setIsRecording(false);
+    const formData = new FormData();
+    formData.set("file", uri as string);
+    const response = await axios.post(
+      "http://localhost:3000/analyze-speech",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+
+    console.log(response.status);
+    console.log("Recording stopped and stored at", uri);
+  };
+
   const handleEntry = (value: string) => {
     const newDisplay = display + value;
     setDisplay(newDisplay);
@@ -92,15 +156,9 @@ export default function Page() {
   };
 
   const handlePi = () => {
-    
-      const newDisplay = display + pi.toString();
-      setDisplay(newDisplay.toString());
-    
-  }
-
-  // handleInversion = () => {
-
-  // }
+    const newDisplay = display + pi.toString();
+    setDisplay(newDisplay.toString());
+  };
 
   const handleEqual = () => {
     if (
@@ -111,51 +169,22 @@ export default function Page() {
       display[display.length - 1] === "%"
     ) {
       if (display.includes("+")) {
-        const firstOperand = display.substring(0, display.indexOf("+"));
-        const secondOperand = display.substring(
-          display.indexOf("+") + 1,
-          display.length
-        );
         const result1 = evaluate(display);
         setResult(result1.toString());
         setDisplay(result1.toString());
       } else if (display.includes("-")) {
-        const firstOperand = display.substring(0, display.indexOf("-"));
-        const secondOperand = display.substring(
-          display.indexOf("-") + 1,
-          display.length
-        );
-        // const result1 = Number(firstOperand) - Number(secondOperand);
         const result1 = evaluate(display);
         setResult(result1.toString());
         setDisplay(result1.toString());
       } else if (display.includes("*")) {
-        const firstOperand = display.substring(0, display.indexOf("*"));
-        const secondOperand = display.substring(
-          display.indexOf("*") + 1,
-          display.length
-        );
-        // const result1 = Number(firstOperand) * Number(secondOperand);
         const result1 = evaluate(display);
         setResult(result1.toString());
         setDisplay(result1.toString());
       } else if (display.includes("/")) {
-        const firstOperand = display.substring(0, display.indexOf("/"));
-        const secondOperand = display.substring(
-          display.indexOf("/") + 1,
-          display.length
-        );
-        // const result1 = Number(firstOperand) / Number(secondOperand);
         const result1 = evaluate(display);
         setResult(result1.toString());
         setDisplay(result1.toString());
       } else if (display.includes("^")) {
-        const firstOperand = display.substring(0, display.indexOf("/"));
-        const secondOperand = display.substring(
-          display.indexOf("/") + 1,
-          display.length
-        );
-        // const result1 = Number(firstOperand) / Number(secondOperand);
         const result1 = evaluate(display);
         setResult(result1.toString());
         setDisplay(result1.toString());
@@ -167,6 +196,10 @@ export default function Page() {
       }
     }
   };
+
+ 
+
+ 
   return (
     <View style={styles.container}>
       <CalculatorDisplay display={display} result={result} />
@@ -185,7 +218,7 @@ export default function Page() {
             textStyle={{ color: "red" }}
             onPress={handleClear}
           />
-          <ButtonPadMember value="( )" textStyle={{ color: "lightgreen" }} />
+          <ButtonPadMember value="AI" textStyle={{ color: "lightgreen" }} />
           <ButtonPadMember
             value="%"
             textStyle={{ color: "lightgreen" }}
@@ -259,6 +292,22 @@ export default function Page() {
           />
         </ButtonPad>
       </View>
+
+      {isRecording ? (
+        <StopCircle
+          size={50}
+          color="red"
+          style={styles.floatingButton}
+          onPress={stopRecording}
+        />
+      ) : (
+        <Brain
+          size={50}
+          color="white"
+          style={styles.floatingButton}
+          onPress={startRecording}
+        />
+      )}
     </View>
   );
 }
@@ -267,6 +316,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "white",
+    position: "relative",
   },
 
   text: {
@@ -288,5 +338,11 @@ const styles = StyleSheet.create({
     padding: 10,
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+
+  floatingButton: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
   },
 });

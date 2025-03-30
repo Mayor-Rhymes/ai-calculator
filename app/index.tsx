@@ -1,23 +1,22 @@
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { CalculatorDisplay } from "@/components/Display";
 import { ButtonPad, ButtonPadMember } from "@/components/ButtonPad";
-import { History, Delete, Brain, StopCircle } from "lucide-react-native";
-import { useState, useEffect } from "react";
-import * as ScreenOrientation from "expo-screen-orientation";
+import { Delete, Brain, StopCircle } from "lucide-react-native";
+import { useState } from "react";
+
 import {
   evaluate,
   pi,
-  isPositive,
   abs,
-  log,
   factorial,
-  e,
   sqrt,
   sin,
   cos,
   tan,
   unit,
   asin,
+  acos,
+  atan
 } from "mathjs";
 import { Audio } from "expo-av";
 import { Recording } from "expo-av/build/Audio";
@@ -26,15 +25,10 @@ import axios from "axios";
 export default function Page() {
   const [display, setDisplay] = useState("");
   const [result, setResult] = useState("");
-  const [history, setHistory] = useState<string[]>([]);
   const [recording, setRecording] = useState<Recording>();
   const [isRecording, setIsRecording] = useState(false);
   const [permissionResponse, requestPermission] = Audio.usePermissions();
-  // const [orientation, setOrientation] = useState<{
-  //   value: ScreenOrientation.Orientation;
-  //   lock: ScreenOrientation.OrientationLock;
-  // } | null>(null);
-  const maxHistoryLength = 10;
+ 
 
   //Recording functionality
   const startRecording = async () => {
@@ -127,23 +121,42 @@ export default function Page() {
   };
 
   const handleCos = () => {
-    if (Number(display) >= 0) {
-      const newDisplay = cos(unit(Number(display), "deg"));
-      setDisplay(newDisplay.toString());
-    }
+    const newDisplay = cos(unit(Number(display), "deg"));
+    setDisplay(newDisplay.toString());
   };
+
+
+  const handleAcos = () => {
+    
+    const newDisplay = Number(acos(Number(display))) * (180/Math.PI);
+    setDisplay(newDisplay.toString());
+  
+};
+
   const handleSin = () => {
-    if (Number(display) >= 0) {
-      const newDisplay = sin(unit(Number(display), "deg"));
-      setDisplay(newDisplay.toString());
-    }
+    const newDisplay = sin(unit(Number(display), "deg"));
+    setDisplay(newDisplay.toString());
   };
+
+  const handleAsin = () => {
+    
+      const newDisplay = Number(asin(Number(display))) * (180/Math.PI);
+      setDisplay(newDisplay.toString());
+    
+  };
+
+
+  
   const handleTan = () => {
-    if (Number(display) >= 0) {
-      const newDisplay = tan(unit(Number(display), "deg"));
-      setDisplay(newDisplay.toString());
-    }
+    const newDisplay = tan(unit(Number(display), "deg"));
+    setDisplay(newDisplay.toString());
   };
+
+
+  const handleAtan = () => {
+    const newDisplay = Number(atan(Number(display))) * 180/Math.PI;
+    setDisplay(newDisplay.toString());
+  }
 
   const handleFactorial = () => {
     const newDisplay = factorial(Number(display));
@@ -159,6 +172,24 @@ export default function Page() {
     const newDisplay = display + pi.toString();
     setDisplay(newDisplay.toString());
   };
+
+
+  const handleSignInversion = () => {
+
+    let newDisplay = Number(display);
+    if (newDisplay < 0) {
+      newDisplay = abs(newDisplay);
+      setDisplay(newDisplay.toString());
+      return;
+    }
+
+    else {
+
+      newDisplay = -newDisplay;
+      setDisplay(newDisplay.toString());
+      return;
+    }
+  }
 
   const handleEqual = () => {
     if (
@@ -197,28 +228,27 @@ export default function Page() {
     }
   };
 
- 
-
- 
   return (
     <View style={styles.container}>
       <CalculatorDisplay display={display} result={result} />
       <View style={styles.buttonSection}>
         <ButtonPad style={styles.specialPad}>
-          <Pressable>
-            <History color="gray" size={30} />
-          </Pressable>
+          {isRecording ? (
+            <StopCircle color="red" size={30} onPress={stopRecording} />
+          ) : (
+            <Brain color="gray" size={30} onPress={startRecording} />
+          )}
           <Pressable onPress={handleBackSpace}>
             <Delete color="green" size={30} />
           </Pressable>
         </ButtonPad>
         <ButtonPad>
           <ButtonPadMember
+            style={styles.largeClear}
             value="C"
             textStyle={{ color: "red" }}
             onPress={handleClear}
           />
-          <ButtonPadMember value="AI" textStyle={{ color: "lightgreen" }} />
           <ButtonPadMember
             value="%"
             textStyle={{ color: "lightgreen" }}
@@ -261,7 +291,7 @@ export default function Page() {
           />
         </ButtonPad>
         <ButtonPad>
-          <ButtonPadMember value="+/-" />
+          <ButtonPadMember value="+/-" onPress={handleSignInversion} />
           <ButtonPadMember value="0" onPress={() => handleEntry("0")} />
           <ButtonPadMember value="." onPress={() => handleEntry(".")} />
           <ButtonPadMember value="Pi" onPress={handlePi} />
@@ -272,9 +302,9 @@ export default function Page() {
           /> */}
         </ButtonPad>
         <ButtonPad>
-          <ButtonPadMember value="SIN" onPress={handleSin} />
-          <ButtonPadMember value="COS" onPress={handleCos} />
-          <ButtonPadMember value="TAN" onPress={handleTan} />
+          <ButtonPadMember value="SIN" onPress={handleSin} onLongPress={handleAsin} />
+          <ButtonPadMember value="COS" onPress={handleCos} onLongPress={handleAcos} />
+          <ButtonPadMember value="TAN" onPress={handleTan} onLongPress={handleAtan}/>
           <ButtonPadMember
             value="!"
             textStyle={{ color: "lightgreen" }}
@@ -293,7 +323,7 @@ export default function Page() {
         </ButtonPad>
       </View>
 
-      {isRecording ? (
+      {/* {isRecording ? (
         <StopCircle
           size={50}
           color="red"
@@ -307,7 +337,7 @@ export default function Page() {
           style={styles.floatingButton}
           onPress={startRecording}
         />
-      )}
+      )} */}
     </View>
   );
 }
@@ -323,6 +353,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
+  largeClear: {
+    flex: 2,
+    borderRadius: 15,
+    alignItems: "center",
+    //   height: 50,
+    justifyContent: "center",
+    backgroundColor: "#011C27",
+  },
   buttonSection: {
     flex: 1,
     backgroundColor: "black",
